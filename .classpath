@@ -6,5 +6,8 @@
 	<classpathentry kind="lib" path="Contents/Resources/Java/core/library/gluegen-rt-natives-macosx-universal.jar"/>
 	<classpathentry kind="lib" path="Contents/Resources/Java/core/library/gluegen-rt.jar"/>
 	<classpathentry kind="lib" path="Contents/Resources/Java/core/library/jogl-all.jar"/>
+	<classpathentry kind="lib" path="Contents/Resources/Java/core/library/jogl-all-natives-macosx-universal.jar"/>
+	<classpathentry kind="lib" path="controlP5.jar"/>
+	<classpathentry kind="lib" path="peasycam.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

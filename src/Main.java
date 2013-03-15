@@ -1,65 +1,99 @@
 import processing.core.*;
+import peasy.*;
 import java.util.*;
 
 public class Main extends PApplet {
 
-
 	// Constants
 	final int RNG_TYPS_CNT = 6;
-	// Dark tones like hair.
-	final int RNG1_HIGH_CLR_NBR = -18000000;
-	final int RNG1_LOW_CLR_NBR = -15500000;
-	final int RNG2_HIGH_CLR_NBR = -15500000;
-	final int RNG2_LOW_CLR_NBR = -14000000;
-	// Medium tones like the t-shirt and shadows.
-	final int RNG3_HIGH_CLR_NBR = -14000000;
-	final int RNG3_LOW_CLR_NBR = -11700000;
-	final int RNG4_HIGH_CLR_NBR = -11700000;
-	final int RNG4_LOW_CLR_NBR = -9300000;
-	// Light tones like skin.
-	final int RNG5_HIGH_CLR_NBR = -9300000;
-	final int RNG5_LOW_CLR_NBR = -7000000;
-	final int RNG6_HIGH_CLR_NBR = -7000000;
-	final int RNG6_LOW_CLR_NBR = -4000000;
-	final int RNG1_SKETCH_CLR_NBR = color(50);
-	final int RNG2_SKETCH_CLR_NBR = color(60);
-	final int RNG3_SKETCH_CLR_NBR = color(120);
-	final int RNG4_SKETCH_CLR_NBR = color(140);
-	final int RNG5_SKETCH_CLR_NBR = color(170);
-	final int RNG6_SKETCH_CLR_NBR = color(190);
-	final int TIMER_DELAY_NBR = 350; // 0.35 second
+	final int TIMER_DELAY_NBR = 1000; // 1 second
+	final int CUBE_EDGE_SZ_NBR = 1;
+
+	static enum IMG_CLR_RNGS {
+		RNG1(-15500000, -18000000), // Dark tones like hair.
+		RNG2(-14000000, -15500000), 
+		RNG3(-11700000, -14000000), // Medium tones like the t-shirt and shadows.
+		RNG4(-9300000, -11700000), 
+		RNG5(-7000000, -9300000), // Light tones like skin.
+		RNG6(-3700000, -7000000);
+
+		private final int LOW, HIGH;
+
+		// enum constructor
+		IMG_CLR_RNGS(int inpLowNbr, int inpHighNbr) {
+			this.LOW = inpLowNbr;
+			this.HIGH = inpHighNbr;
+		}
+	}
+
+	static enum CLR_TRANS_NBRS {
+		RNG1(60), 
+		RNG2(70), 
+		RNG3(140), 
+		RNG4(160), 
+		RNG5(215), 
+		RNG6(225);
+
+		private final int NBR;
+
+		// enum constructor
+		CLR_TRANS_NBRS(int inpClrNbr) {
+			this.NBR = inpClrNbr;
+		}
+	}
 
 	// Variables
-	PImage origImg = null;
-	PImage newImg = null;
+	PImage origImg, trimmedImg;
 	ArrayList<Sketcher> sketchers = new ArrayList<Sketcher>();
-	int highNbr = 0;
-	int lowNbr = 0;
-	int savedTmNbr = 0;
-	int rngTypCntr = 0;
+	Hashtable<CLR_TRANS_NBRS, PShape> myPShapes;
+	ArrayList<Cube> remainingCubes;
+	ArrayList<Cube> drawnCubes = new ArrayList<Cube>();
+	int highNbr, lowNbr, savedTmNbr, rngTypCntr;
+	PeasyCam cam;
+	Controls myCntrls;
+	// for the camera
+	static int eyeXNbr, eyeYNbr, eyeZNbr, centerXNbr, centerYNbr, centerZNbr, upXNbr, upYNbr, upZNbr;
 
-
+	/*
+	 * main method to run as a Java application outside Processing.
+	 */
 	public static void main(String args[]) {
 		PApplet.main(new String[] { "Main" });
 	}
 
-
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see processing.core.PApplet#setup()
+	 */
 	public void setup() {
+		size(668, 696, P3D);
+		frameRate(24);
 		origImg = loadImage("Apparat.jpg");
 		origImg.loadPixels();
-		size(origImg.width, origImg.height);
-		newImg = createImage(origImg.width, origImg.height, ARGB);
-		//loadFont("LucidaBright-Demi-16.vlw");
+		trimmedImg = trimImg(origImg);
+
+		cam = new PeasyCam(this, width / 2, height / 2, 0, 600);
+		cam.setMinimumDistance(1);
+		cam.setMaximumDistance(600);
+
+		myPShapes = crteShapes();
+		remainingCubes = crteCubes(trimmedImg);
 	}
 
-
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see processing.core.PApplet#draw()
+	 */
 	public void draw() {
-		background(255);
-		//image(origImg, 0, 0);
-		int elapsedTmNbr = millis();
+		background(230);
 		
-		if (((elapsedTmNbr - savedTmNbr) > TIMER_DELAY_NBR) || sketchers.size() < 10) {
-			crtesketcher();
+		int elapsedTmNbr = millis();
+
+		if (remainingCubes.size() > 0
+				&& (((elapsedTmNbr - savedTmNbr) > TIMER_DELAY_NBR) || sketchers.size() < 10)) {
+			sketchers.add(new Sketcher(this, remainingCubes, drawnCubes));
 			savedTmNbr = elapsedTmNbr;
 		}
 
@@ -68,172 +102,150 @@ public class Main extends PApplet {
 			thisSketcher.draw();
 		}
 
-		newImg.updatePixels();
-		set(0, 0, newImg);
+		for (Iterator<Cube> i = drawnCubes.iterator(); i.hasNext();) {
+			Cube thisCube = i.next();
+			thisCube.draw();
+		}
 
+		// camera(eyeXNbr, eyeYNbr, eyeZNbr, centerXNbr, centerYNbr, centerZNbr, upXNbr, upYNbr, upZNbr);
 
-		/*
-		int rtnSampleClrNbr = 0;
-		ArrayList<PVector> sampleLocs = new ArrayList<PVector>();
-		int totClrSampleNbr = 0;
+	}
 
-		for (int x = -1; x <= 1; x++) {
-			for (int y = -1; y <= 1; y++) {
-				PVector thisLoc = new PVector(mouseX + x, mouseY + y);
-				if (thisLoc.x >= 0 && thisLoc.x < origImg.width && 
-					thisLoc.y >= 0 && thisLoc.y < origImg.height) {
-					sampleLocs.add(thisLoc);
+	/*
+	 * Trims the image to dimensions that allow it to be evenly divisible.
+	 * 
+	 * @param The original image to trim.
+	 * @return Returns an ArrayList of the pixels that remain after the trimming.
+	 */
+	private PImage trimImg(PImage inpOrigImg) {
+		int wdthRemainderNbr, hghtRemainderNbr;
+		int leftTrimNbr = 0;
+		int rightTrimNbr = 0;
+		int topTrimNbr = 0;
+		int bottomTrimNbr = 0;
+		float equalSideTrimNbr = 0;
+		PImage rtnTrimmedImg = null;
+
+		wdthRemainderNbr = inpOrigImg.width % CUBE_EDGE_SZ_NBR;
+		if (wdthRemainderNbr > 0) {
+			equalSideTrimNbr = wdthRemainderNbr / (float) 2;
+			leftTrimNbr = floor(equalSideTrimNbr);
+			rightTrimNbr = ceil(equalSideTrimNbr);
+		}
+
+		hghtRemainderNbr = inpOrigImg.height % CUBE_EDGE_SZ_NBR;
+		if (hghtRemainderNbr > 0) {
+			equalSideTrimNbr = hghtRemainderNbr / (float) 2;
+			topTrimNbr = floor(equalSideTrimNbr);
+			bottomTrimNbr = ceil(equalSideTrimNbr);
+		}
+
+		rtnTrimmedImg = createImage(inpOrigImg.width - wdthRemainderNbr, inpOrigImg.height - hghtRemainderNbr, RGB);
+		rtnTrimmedImg.loadPixels();
+
+		int trimmedImgIdxNbr = 0;
+		// Create an ArrayList of the images pixels, trimming off any portion of the edges as necessary.
+		for (int y = topTrimNbr; y < inpOrigImg.height - bottomTrimNbr; y++) {
+			for (int x = leftTrimNbr; x < inpOrigImg.width - rightTrimNbr; x++) {
+				rtnTrimmedImg.pixels[trimmedImgIdxNbr] = inpOrigImg.pixels[x + (y * inpOrigImg.width)];
+
+				trimmedImgIdxNbr++;
+			}
+		}
+
+		rtnTrimmedImg.updatePixels();
+		return rtnTrimmedImg;
+	}
+
+	/*
+	 * Creates the fundamental PShapes that we will use. Each PShape can then be
+	 * reused by objects that will share its same geometry and color.
+	 * 
+	 * @return A Hashtable of PShapes keyed by a range color enumeration.
+	 */
+	private Hashtable<CLR_TRANS_NBRS, PShape> crteShapes() {
+		Hashtable<CLR_TRANS_NBRS, PShape> rtnTbl = new Hashtable<CLR_TRANS_NBRS, PShape>();
+
+		for (CLR_TRANS_NBRS rng : CLR_TRANS_NBRS.values()) {
+			PShape rngShape = createShape(BOX, CUBE_EDGE_SZ_NBR);
+			rngShape.setStroke(false);
+			rngShape.setFill(color(rng.NBR));
+			rtnTbl.put(rng, rngShape);
+		}
+
+		return rtnTbl;
+	}
+
+	/*
+	 * Creates our Cubes by breaking up the image into areas of a given square
+	 * size and recording the colors of the pixels within those areas.
+	 * 
+	 * @param inpTrimmedImg The trimmed image.
+	 * @return An ArrayList of Cubes.
+	 */
+	private ArrayList<Cube> crteCubes(PImage inpTrimmedImg) {
+		ArrayList<Cube> rtnCubes = new ArrayList<Cube>();
+		int sampleClrNbr;
+		PShape clrPShape = null;
+
+		for (int y = 0; y < inpTrimmedImg.height; y += CUBE_EDGE_SZ_NBR) {
+			for (int x = 0; x < inpTrimmedImg.width; x += CUBE_EDGE_SZ_NBR) {
+
+				int[] cubeImgPxlClrNbrs = new int[CUBE_EDGE_SZ_NBR * CUBE_EDGE_SZ_NBR];
+
+				int cubePxlNbr = 0;
+				for (int yOffsetNbr = 0; yOffsetNbr < CUBE_EDGE_SZ_NBR; yOffsetNbr++) {
+					for (int xOffsetNbr = 0; xOffsetNbr < CUBE_EDGE_SZ_NBR; xOffsetNbr++) {
+						cubeImgPxlClrNbrs[cubePxlNbr] = inpTrimmedImg.pixels[x + xOffsetNbr + ((y + yOffsetNbr) * inpTrimmedImg.width)];
+
+						cubePxlNbr++;
+					}
+				}
+
+				sampleClrNbr = samplePxlClrs(cubeImgPxlClrNbrs);
+				clrPShape = null;
+
+				// The color integer values are negative because they are opaque.
+				// http://wiki.processing.org/w/What_is_a_color_in_Processing%3F
+				if (IMG_CLR_RNGS.RNG1.LOW >= sampleClrNbr && sampleClrNbr > IMG_CLR_RNGS.RNG1.HIGH) {
+					clrPShape = myPShapes.get(CLR_TRANS_NBRS.RNG1);
+				} else if (IMG_CLR_RNGS.RNG2.LOW >= sampleClrNbr && sampleClrNbr > IMG_CLR_RNGS.RNG2.HIGH) {
+					clrPShape = myPShapes.get(CLR_TRANS_NBRS.RNG2);
+				} else if (IMG_CLR_RNGS.RNG3.LOW >= sampleClrNbr && sampleClrNbr > IMG_CLR_RNGS.RNG3.HIGH) {
+					clrPShape = myPShapes.get(CLR_TRANS_NBRS.RNG3);
+				} else if (IMG_CLR_RNGS.RNG4.LOW >= sampleClrNbr && sampleClrNbr > IMG_CLR_RNGS.RNG4.HIGH) {
+					clrPShape = myPShapes.get(CLR_TRANS_NBRS.RNG4);
+				} else if (IMG_CLR_RNGS.RNG5.LOW >= sampleClrNbr && sampleClrNbr > IMG_CLR_RNGS.RNG5.HIGH) {
+					clrPShape = myPShapes.get(CLR_TRANS_NBRS.RNG5);
+				} else if (IMG_CLR_RNGS.RNG6.LOW >= sampleClrNbr && sampleClrNbr > IMG_CLR_RNGS.RNG6.HIGH) {
+					clrPShape = myPShapes.get(CLR_TRANS_NBRS.RNG6);
+				} else {
+					// We won't create a cube if it doesn't fall within the above ranges.
+				}
+
+				if (clrPShape != null) {
+					rtnCubes.add(new Cube(this, clrPShape, x, y));
 				}
 			}
 		}
 
-		for(Iterator<PVector> i = sampleLocs.iterator(); i.hasNext(); ) {
-			  PVector thisLoc = i.next();
-			  // Get the color of this pixel.
-				// N.B., the "color" data type only exists in Processing.
-				totClrSampleNbr += origImg.pixels[mouseX + (mouseY * origImg.width)];
-		}
-
-		//totClrSampleNbr / sampleLocs.size();
-
-		//int pxlClrNbr = origImg.pixels[mouseX + (mouseY*origImg.width)];
-
-		int txtXPosNbr = mouseX + 10;
-		int txtYPosNbr = mouseY + 10;
-
-		if (txtXPosNbr >= origImg.width - 80) {
-			txtXPosNbr -= 90;
-		}
-
-		if (txtYPosNbr >= origImg.height) {
-			txtYPosNbr -= 10;
-		}
-
-		text(totClrSampleNbr / sampleLocs.size(), txtXPosNbr, txtYPosNbr);
-		 */
-
-		/*
-		if (mouseX <= origImg.width && mouseY <= origImg.height && mouseY >= 250) {
-			if (abs(pxlClrNbr) > highNbr) {
-				highNbr = abs(pxlClrNbr);
-			}
-
-			if (abs(pxlClrNbr) < lowNbr || lowNbr == 0) {
-				lowNbr = abs(pxlClrNbr);
-			}
-		}
-		 */
+		return rtnCubes;
 	}
 
-
 	/*
-	 * Creates the set of sketchers that will randomly walk around, filling in different parts of the image.
+	 * Samples the color of the current pixel as well as the pixels in its
+	 * vicinity and returns their average value.
+	 * 
+	 * @param inpPxlClrs Array of pixel colors to sample.
+	 * @return Integer of the average color value for these pixels.
 	 */
-	void crtesketcher() {
-		/*
-		int xNbr = (int) random(0, origImg.width);
-		int yNbr = (int) random(0, origImg.height);
-		Sketcher rng1Sketcher = new Sketcher(this, xNbr, yNbr, RNG1_LOW_CLR_NBR, RNG1_HIGH_CLR_NBR, origImg, newImg, RNG1_SKETCH_CLR_NBR);
-		xNbr = (int) random(0, origImg.width);
-		yNbr = (int) random(0, origImg.height);
-		Sketcher rng1Sketcher2 = new Sketcher(this, xNbr, yNbr, RNG1_LOW_CLR_NBR, RNG1_HIGH_CLR_NBR, origImg, newImg, RNG1_SKETCH_CLR_NBR);
-		xNbr = (int) random(0, origImg.width);
-		yNbr = (int) random(0, origImg.height);
-		Sketcher rng1Sketcher3 = new Sketcher(this, xNbr, yNbr, RNG1_LOW_CLR_NBR, RNG1_HIGH_CLR_NBR, origImg, newImg, RNG1_SKETCH_CLR_NBR);
-		xNbr = (int) random(0, origImg.width);
-		yNbr = (int) random(0, origImg.height);
-		Sketcher rng1Sketcher4 = new Sketcher(this, xNbr, yNbr, RNG1_LOW_CLR_NBR, RNG1_HIGH_CLR_NBR, origImg, newImg, RNG1_SKETCH_CLR_NBR);
+	private int samplePxlClrs(int[] inpPxlClrNbrs) {
+		int totClrSampleNbr = 0;
 
-		// We will start this close to the shirt
-		xNbr = (int) random(0, origImg.width);
-		yNbr = (int) random(origImg.height/4 * 3, origImg.height);
-		Sketcher rng2Sketcher = new Sketcher(this, xNbr, yNbr, RNG2_LOW_CLR_NBR, RNG2_HIGH_CLR_NBR, origImg, newImg, RNG2_SKETCH_CLR_NBR);
-		xNbr = (int) random(0, origImg.width);
-		yNbr = (int) random(origImg.height/4 * 3, origImg.height);
-		Sketcher rng2Sketcher2 = new Sketcher(this, xNbr, yNbr, RNG2_LOW_CLR_NBR, RNG2_HIGH_CLR_NBR, origImg, newImg, RNG2_SKETCH_CLR_NBR);
-		xNbr = (int) random(0, origImg.width);
-		yNbr = (int) random(origImg.height/4 * 3, origImg.height);
-		Sketcher rng2Sketcher3 = new Sketcher(this, xNbr, yNbr, RNG2_LOW_CLR_NBR, RNG2_HIGH_CLR_NBR, origImg, newImg, RNG2_SKETCH_CLR_NBR);
-		xNbr = (int) random(0, origImg.width);
-		yNbr = (int) random(origImg.height/4 * 3, origImg.height);
-		Sketcher rng2Sketcher4 = new Sketcher(this, xNbr, yNbr, RNG2_LOW_CLR_NBR, RNG2_HIGH_CLR_NBR, origImg, newImg, RNG2_SKETCH_CLR_NBR);
-
-		xNbr = (int) random(0, origImg.width);
-		yNbr = (int) random(0, origImg.height);
-		Sketcher rng3Sketcher = new Sketcher(this, xNbr, yNbr, RNG3_LOW_CLR_NBR, RNG3_HIGH_CLR_NBR, origImg, newImg, RNG3_SKETCH_CLR_NBR);
-		xNbr = (int) random(0, origImg.width);
-		yNbr = (int) random(0, origImg.height);
-		Sketcher rng3Sketcher2 = new Sketcher(this, xNbr, yNbr, RNG3_LOW_CLR_NBR, RNG3_HIGH_CLR_NBR, origImg, newImg, RNG3_SKETCH_CLR_NBR);
-		xNbr = (int) random(0, origImg.width);
-		yNbr = (int) random(0, origImg.height);
-		Sketcher rng3Sketcher3 = new Sketcher(this, xNbr, yNbr, RNG3_LOW_CLR_NBR, RNG3_HIGH_CLR_NBR, origImg, newImg, RNG3_SKETCH_CLR_NBR);
-		xNbr = (int) random(0, origImg.width);
-		yNbr = (int) random(0, origImg.height);
-		Sketcher rng3Sketcher4 = new Sketcher(this, xNbr, yNbr, RNG3_LOW_CLR_NBR, RNG3_HIGH_CLR_NBR, origImg, newImg, RNG3_SKETCH_CLR_NBR);
-
-		// We will start this close to the eyes.
-		xNbr = (int) random(0, origImg.width);
-		yNbr = (int) random(origImg.height/4, origImg.height/4 * 3);
-		Sketcher rng4Sketcher = new Sketcher(this, xNbr, yNbr, RNG4_LOW_CLR_NBR, RNG4_HIGH_CLR_NBR, origImg, newImg, RNG4_SKETCH_CLR_NBR);
-		xNbr = (int) random(0, origImg.width);
-		yNbr = (int) random(origImg.height/4, origImg.height/4 * 3);
-		Sketcher rng4Sketcher2 = new Sketcher(this, xNbr, yNbr, RNG4_LOW_CLR_NBR, RNG4_HIGH_CLR_NBR, origImg, newImg, RNG4_SKETCH_CLR_NBR);
-		xNbr = (int) random(0, origImg.width);
-		yNbr = (int) random(origImg.height/4, origImg.height/4 * 3);
-		Sketcher rng4Sketcher3 = new Sketcher(this, xNbr, yNbr, RNG4_LOW_CLR_NBR, RNG4_HIGH_CLR_NBR, origImg, newImg, RNG4_SKETCH_CLR_NBR);
-		xNbr = (int) random(0, origImg.width);
-		yNbr = (int) random(origImg.height/4, origImg.height/4 * 3);
-		Sketcher rng4Sketcher4 = new Sketcher(this, xNbr, yNbr, RNG4_LOW_CLR_NBR, RNG4_HIGH_CLR_NBR, origImg, newImg, RNG4_SKETCH_CLR_NBR);
-
-
-		sketchers.add(rng1Sketcher);
-		sketchers.add(rng1Sketcher2);
-		sketchers.add(rng1Sketcher3);
-		sketchers.add(rng1Sketcher4);
-		sketchers.add(rng2Sketcher);
-		sketchers.add(rng2Sketcher2);
-		sketchers.add(rng2Sketcher3);
-		sketchers.add(rng2Sketcher4);
-		sketchers.add(rng3Sketcher);
-		sketchers.add(rng3Sketcher2);
-		sketchers.add(rng3Sketcher3);
-		sketchers.add(rng3Sketcher4);
-		sketchers.add(rng4Sketcher);
-		sketchers.add(rng4Sketcher2);
-		sketchers.add(rng4Sketcher3);
-		sketchers.add(rng4Sketcher4);
-		*/
-		
-		int xNbr = (int) random(0, origImg.width);
-		int yNbr = (int) random(0, origImg.height);
-		Sketcher thisSketcher = null;
-		int rngTypNbr = rngTypCntr % RNG_TYPS_CNT + 1;
-		
-		switch (rngTypNbr) {
-		case 1:
-			thisSketcher = new Sketcher(this, xNbr, yNbr, RNG1_LOW_CLR_NBR, RNG1_HIGH_CLR_NBR, origImg, newImg, RNG1_SKETCH_CLR_NBR);
-			break;
-		case 2:
-			thisSketcher = new Sketcher(this, xNbr, yNbr, RNG2_LOW_CLR_NBR, RNG2_HIGH_CLR_NBR, origImg, newImg, RNG2_SKETCH_CLR_NBR);
-			break;
-		case 3:
-			thisSketcher = new Sketcher(this, xNbr, yNbr, RNG3_LOW_CLR_NBR, RNG3_HIGH_CLR_NBR, origImg, newImg, RNG3_SKETCH_CLR_NBR);
-			break;
-		case 4:
-			thisSketcher = new Sketcher(this, xNbr, yNbr, RNG4_LOW_CLR_NBR, RNG4_HIGH_CLR_NBR, origImg, newImg, RNG4_SKETCH_CLR_NBR);
-			break;
-		case 5:
-			thisSketcher = new Sketcher(this, xNbr, yNbr, RNG5_LOW_CLR_NBR, RNG5_HIGH_CLR_NBR, origImg, newImg, RNG5_SKETCH_CLR_NBR);
-			break;
-		case 6:
-			thisSketcher = new Sketcher(this, xNbr, yNbr, RNG6_LOW_CLR_NBR, RNG6_HIGH_CLR_NBR, origImg, newImg, RNG6_SKETCH_CLR_NBR);
-			break;
-		default:
-			thisSketcher = new Sketcher(this, xNbr, yNbr, RNG1_LOW_CLR_NBR, RNG1_HIGH_CLR_NBR, origImg, newImg, RNG1_SKETCH_CLR_NBR);
+		for (int i = 0; i < inpPxlClrNbrs.length; i++) {
+			totClrSampleNbr += inpPxlClrNbrs[i];
 		}
-	
-		sketchers.add(thisSketcher);
-		
-		rngTypCntr++;
+
+		return totClrSampleNbr / inpPxlClrNbrs.length;
 	}
 }
